@@ -3,7 +3,7 @@
 Please consider supporting the developer at https://ko-fi.com/akiak
 
 Recurrent Complex Volts brings classic Recurrent Complex structures and
-worldgen to modern Minecraft. It loads old RC `.rcst` structure files,
+worldgen to Minecraft 1.20.1 Forge. It loads old RC `.rcst` structure files,
 generates bundled structures in new worlds, and gives players an in-game GUI for
 browsing, previewing, placing, exporting, editing, and diagnosing structures.
 
@@ -11,7 +11,7 @@ The port is built around compatibility. Missing mod content degrades safely,
 usually to air, instead of crashing a world. Old `.rcst` files remain the main
 Recurrent Complex structure format.
 
-Current public baseline: `0.5.1.0`.
+Current public baseline: `0.6.0.0`.
 
 Install it like a normal Forge mod by putting the built jar in your `mods`
 folder.
@@ -362,14 +362,20 @@ Important groups:
 
 - `worldgen`
   - Natural generation, deferred placement limits, optional spacing, native
-    locate support, bundled-default inclusion, complement behavior, and
-    diagnostics.
+    locate support, bundled-default inclusion, complement behavior, active
+    placement fast-lane limits, and diagnostics.
 - `saplings`
   - RC sapling replacement.
 - `decorations`
-  - Tree, mushroom, cactus, desert well, and fossil replacement.
+  - Tree, mushroom, cactus, desert well, and fossil replacement. Tree
+    decoration first uses `treeChunkChance` (`0.10` by default), then the
+    conservative `treeBaseWeight`, and accepts at most one RC tree replacement
+    attempt per chunk to avoid deferred-placement pressure in dense forests.
 - `villages`
-  - Bounded RC village-piece bridge.
+  - Bounded RC village-piece bridge. `attemptChance` softly controls how often
+    eligible village chunks try RC pieces, `baseWeight` controls how strongly
+    RC pieces compete when attempted, and `budget` remains a safety cap for
+    accepted RC cost in one detected village.
 
 Older config section names are migrated automatically where possible.
 
@@ -379,6 +385,12 @@ Worldgen uses a deferred compatibility bridge. RC structures are selected during
 worldgen, then placed later on the server thread when affected chunks are safe
 to touch. This is intentional; it avoids unsafe chunk-worker world mutation while
 letting old multi-chunk structures work in modern Minecraft.
+
+Already-started loaded natural, village, and script-child placements get a
+bounded active-placement boost so visible structures finish sooner. Loaded
+chunk-complement slices for ledgered natural structures get the same kind of
+bounded boost. The knobs live under `worldgen.activePlacement` and
+`worldgen.chunkComplements`; decorations remain on the conservative pacing path.
 
 Known limitations:
 
@@ -402,8 +414,12 @@ Known limitations:
   still deferred;
 - missing mod content degrades safely, usually to air, rather than being
   automatically remapped to unrelated vanilla blocks;
-- some far-away decoration catch-up is intentionally ephemeral under very fast
-  creative flight pressure.
+- already-started active phased decoration placements can still be pruned if
+  their chunks stay unloaded too long under very fast creative flight pressure;
+- parked root decorations may be evicted under extreme planned-store pressure
+  so accepted village and natural structures can still park and resume;
+- true regional megastructure jobs are still future work, so enormous imported
+  builds may need authoring strategy or later chunk-sliced placement support.
 
 For release testing, use `./gradlew verifyReleaseJar` plus the checklist in
 [`docs/porting/release-checklist.md`](docs/porting/release-checklist.md).
