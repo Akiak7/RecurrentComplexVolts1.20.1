@@ -299,7 +299,8 @@ repair into one editable `.rcst` file instead of using a global rule.
 - `/rc worldgen status`, `balance`, `catalog`, `inspect <id>`, `queue`,
   `recent`, and `stats` - inspect natural generation, frequency knobs,
   deferred placement, compatible surface-footprint mode, native locate planning,
-  live diagnostic counters, and optional dev watchdog counters.
+  live diagnostic counters, planned-store cap skips/priority evictions, and
+  optional dev watchdog counters.
 - `/rc whatisthis` or `/rc here` - identify recorded RC structure footprints at
   your current position. `/rc whatisthis at <x y z>` and `/rc here at <x y z>`
   check an exact block position. V1 is RC-only and uses placement records, so it
@@ -307,8 +308,9 @@ repair into one editable `.rcst` file instead of using a global rule.
   installed; it does not backfill old worlds or identify vanilla structures.
 - `/locate structure reccomplex:natural_structure` - use vanilla locate to
   predict the nearest aggregate RC natural structure candidate, including in
-  unexplored terrain. The native structure shell still queues the legacy `.rcst`
-  placement body through RC's compatibility/deferred worldgen pipeline. Native
+  unexplored terrain. The native structure shell accepts the legacy `.rcst`
+  placement body through RC's compatibility/deferred worldgen pipeline, parking
+  it durably if the live queue is busy. Native
   locate mode anchors RC natural placement to the located chunk center so the
   visible body should generate around the reported X/Z for surface structures.
 - `/rc locate <structureId> [family] [radius <chunks>]` - start a tick-sliced
@@ -323,10 +325,31 @@ repair into one editable `.rcst` file instead of using a global rule.
   so rare searches may take longer but should not monopolize chunk loading. Output
   distinguishes exact/family matches, no target selections, target terrain
   rejects, and nearest aggregate candidates that selected a different RC id.
+- `/rc generate <id> [at <x z>] [y <y>] [rotate <0-3>] [mirror]` - explicitly
+  plan one legacy natural `.rcst`. For player-run commands this matches old
+  `/#gen` operation semantics: it shows a capped client ghost first, then
+  `/rc confirm` queues the frozen planned origin and transform through the
+  normal deferred/ledger worldgen placement pipeline. `/rc cancel` clears the
+  preview. Console and other non-player command sources queue immediately
+  because they cannot receive a client preview. Without `at`, the player's
+  current X/Z is used. The X/Z is an old-style centered surface anchor, not the
+  lower structure corner. `y <y>` uses the supplied lower Y and bypasses surface
+  selection; otherwise the structure's natural placer, build-height checks, and
+  conformity checks are still used. This admin command ignores automatic
+  selector gates such as global worldgen enablement, weights, biome/dimension
+  eligibility, spacing, and allowed-structure lists. If the entire affected
+  chunk span is already loaded when the work is queued, ledger-eligible requests
+  queue directly as loaded deferred work so the active fast lane can start
+  immediately. It is natural-generation only in this pass.
+- `/rc generate preview <id> [at <x z>] [y <y>] [rotate <0-3>] [mirror]` -
+  explicit spelling for the same player preview flow. The ghost is advisory and
+  sampled for large structures, while final safe-write and ensureBlocks checks
+  still happen during deferred placement.
 - `/rc worldgen rates <structureId>` - show static selector inputs for one RC
   natural structure: category, generation weight, current biome/dimension
   weights, config multipliers, and estimated pre-terrain odds. These are not
-  visible-placement odds because terrain and queue checks happen later.
+  visible-placement odds because terrain checks, durable parking, queue resume,
+  and final placement happen later.
 - `/rc worldgen sample <structureId> [family] [detail] [radius <chunks>]` - run a
   tick-sliced diagnostic scan over the full requested radius. It counts normal
   aggregate RC selections, selections of the requested exact/family target,
@@ -369,14 +392,22 @@ structures.
 - Saplings use `saplings.triggerChance` and `saplings.baseWeight`.
   Lower chance/weight means fewer RC sapling replacements.
 - Decorations use `decorations.*BaseWeight`; higher values make RC
-  decorators win more often.
-- Villages use `villages.baseWeight`; higher values make RC pieces win more
-  often in the bounded village bridge.
+  decorators win more often. RC tree decoration first passes
+  `decorations.treeChunkChance` (`0` disables RC decoration trees, `0.10`
+  means roughly 10% of otherwise tree-eligible chunks, `1` restores the
+  current capped behavior) and is then capped to one accepted replacement
+  attempt per chunk to keep dense forests from flooding deferred placement.
+- Villages use `villages.attemptChance` to softly gate eligible village chunks
+  before selection, then `villages.baseWeight` to decide how strongly RC pieces
+  compete when attempted.
 - Individual exported structures keep their own `.rcst` weights. Use `/rc gen
   show <id>`, `/rc gen natural weight <id> <value>`, or `/rc gui` -> `Gen`.
 - Surface placement compatibility uses `worldgen.compatSurfaceFootprint=true`
   by default. This measures surface roughness with the old RC safe-footprint
   shape around the trigger chunk before the full liquid/conformity checks run.
+  `worldgen.maxSurfaceDelta` is the single roughness cap for supported RC
+  surface placement styles, default `7`; set it to `4` for stricter old-like
+  rejection.
   Set it to `false` only when comparing against the stricter full-footprint port
   behavior.
 - Optional natural spacing is edited from `/rc gui` -> `Balance` -> `Spacing`
@@ -389,6 +420,7 @@ structures.
   - `/rc worldgen balance set natural multiplier 0.5`
   - `/rc worldgen balance set natural rarity 2`
   - `/rc worldgen balance set natural category frequent 2`
+  - `/rc worldgen balance set decorations treeChance 0.1`
   - `/rc worldgen balance set decorations weight tree 2`
   - `/rc worldgen balance set spacing enabled true`
   - `/rc worldgen balance set spacing distance 8`
