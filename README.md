@@ -16,7 +16,6 @@ Please consider supporting the developer at https://ko-fi.com/akiak
 
 ## Guide Contents
 
-- [Requirements And Installation](#requirements-and-installation)
 - [Updating And Existing Worlds](#updating-and-existing-worlds)
 - [Permissions](#permissions)
 - [Quick Start](#quick-start)
