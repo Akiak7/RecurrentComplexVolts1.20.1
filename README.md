@@ -1,20 +1,63 @@
 # Recurrent Complex Volts
 
-Please consider supporting the developer at https://ko-fi.com/akiak
-
 Recurrent Complex Volts brings classic Recurrent Complex structures and
 worldgen to Minecraft 1.20.1 Forge. It loads old RC `.rcst` structure files,
-generates bundled structures in new worlds, and gives players an in-game GUI for
-browsing, previewing, placing, exporting, editing, and diagnosing structures.
+generates bundled structures in newly generated chunks, and gives players an
+in-game GUI for browsing, previewing, placing, exporting, editing, and diagnosing
+structures.
 
 The port is built around compatibility. Missing mod content degrades safely,
 usually to air, instead of crashing a world. Old `.rcst` files remain the main
 Recurrent Complex structure format.
 
-Current public baseline: `0.6.0.0`.
+Current public baseline: `0.6.1.0`.
 
-Install it like a normal Forge mod by putting the built jar in your `mods`
-folder.
+Please consider supporting the developer at https://ko-fi.com/akiak
+
+## Guide Contents
+
+- [Requirements And Installation](#requirements-and-installation)
+- [Updating And Existing Worlds](#updating-and-existing-worlds)
+- [Permissions](#permissions)
+- [Quick Start](#quick-start)
+- [Main GUI Tabs](#main-gui-tabs)
+- [Common GUI Workflows](#common-gui-workflows)
+- [Worldgen And Frequency](#worldgen-and-frequency)
+- [Structure Compatibility](#structure-compatibility)
+- [Troubleshooting](#troubleshooting)
+- [Runtime Notes And Known Limitations](#runtime-notes-and-known-limitations)
+- [Building From Source](#building-from-source)
+
+Detailed guides:
+
+- [Structure Authoring](docs/user/structure-authoring.md)
+- [Configuration And Troubleshooting](docs/user/configuration-and-troubleshooting.md)
+- [Command Reference](docs/user/command-reference.md)
+
+## Updating And Existing Worlds
+
+RC worldgen runs when chunks are first generated. Installing the mod in an
+existing world works, but structures appear only in unexplored chunks; existing
+chunks are not regenerated or retroactively populated.
+
+Back up an important world before updating or importing a large structure pack.
+Existing `config/reccomplex-common.toml` files retain their stored values when a
+new version changes defaults. To adopt every current default, stop the game,
+back up or rename that file, and let RC create a new one at next launch.
+
+## Permissions
+
+- Anyone can open the GUI and use read-only browsing, checks, audits, and most
+  diagnostics.
+- Permission level `2` is required for selection, preview, placement, confirm,
+  cancel, undo, catalog reloads, predictive locating, and `/rc generate`.
+- Permission level `4` is required for exports, editable copies, metadata and
+  loot-generator changes, missing-block replacement changes, and global balance
+  edits.
+
+In singleplayer, enable cheats when creating the world or temporarily use
+`Open to LAN -> Allow Cheats`. On a dedicated server, use the normal operator
+configuration.
 
 ## Quick Start
 
@@ -39,8 +82,12 @@ For built-in help and diagnostics:
 /rc status
 ```
 
-For the detailed command map, see
-[`docs/porting/command-reference.md`](docs/porting/command-reference.md).
+Optional unbound controls are available under
+`Options -> Controls -> Key Binds -> Recurrent Complex` for opening the browser,
+confirming or cancelling previews, and undoing the latest RC operation.
+
+For the detailed command map, see the
+[command reference](docs/user/command-reference.md).
 
 ## Main GUI Tabs
 
@@ -78,6 +125,61 @@ the full text on hover.
 
 `Normal` placement is the recommended compatibility mode. `Raw` is a debug-style
 direct copy mode and is not recommended for ordinary placement.
+
+The preview ghost is advisory and sampled when a structure is large. Supported
+transformers, terrain changes, scripts, block entities, entities, and final
+safe-write checks run during confirmed placement. `/rc undo` covers the latest
+undoable command-side edit while its in-memory history remains available; it
+does not undo automatic worldgen or survive a restart.
+
+### Generate A Structure With Its Natural Placer
+
+`/rc generate` is the modern equivalent of old `/#gen`. Unlike ordinary manual
+placement, it uses the structure's natural-generation placer and centered X/Z
+anchor.
+
+```text
+/rc generate SmallFortRuins
+/rc generate SmallFortRuins at 100 -200
+/rc generate SmallFortRuins at 100 -200 y 62 rotate 1 mirror
+```
+
+For a player, the command shows a ghost first. `/rc confirm` queues the frozen
+origin and transform through the safe deferred worldgen pipeline; `/rc cancel`
+discards it. Without `at`, your current X/Z is used. `y` supplies the lower world
+Y for this one request and bypasses surface selection.
+
+Explicit generation intentionally ignores automatic selector gates such as
+frequency, biome/dimension eligibility, spacing, bundled inclusion, allowlists,
+and the global worldgen toggle. It still requires supported natural metadata and
+keeps build-height, conformity, `ensureBlocks`, chunk-safety, script, Create, and
+phased-placement checks.
+
+### Find Or Identify RC Structures
+
+Use vanilla locate for the aggregate nearest predicted RC natural structure:
+
+```text
+/locate structure reccomplex:natural_structure
+```
+
+Use RC's tick-sliced locator for a particular structure:
+
+```text
+/rc locate StonePlantMound
+/rc locate StonePlantMound family
+```
+
+To identify a recorded RC footprint at your position:
+
+```text
+/rc here
+/rc here at <x y z>
+```
+
+Footprint lookup is not block recognition. It does not backfill old worlds,
+identify vanilla structures, or normally identify decoration trees and sapling
+replacements because those footprint settings default to off.
 
 ### Import A Schematic
 
@@ -130,7 +232,8 @@ config/reccomplex/structures/active/<id>.rcst
 
 Files placed directly under `structures` or under `structures/active` are
 loaded. Move files to `structures/inactive` to keep them installed but disabled.
-Run `/rc reload` or click `Refresh` after manually adding or moving files.
+Run `/rc reload` after manually adding or moving files, then click the GUI `R`
+button if the open page needs refreshing.
 
 ### Make A Bundled Structure Editable
 
@@ -172,6 +275,39 @@ Open `/rc gui -> Gen` on an editable structure.
 
 GUI fields are explicit-apply fields. Typing a value does not change the
 structure until you press the matching button.
+
+### Make A Custom Structure Generate Naturally
+
+1. Export the build or make an editable copy of a bundled structure.
+2. Test it with `Check`, `Audit`, and a normal manual preview.
+3. Open `Gen -> Nat`, select a category, then apply `Surf`, `Under`, or `Nether`.
+4. Set its weight, dimension preset, biome/dimension rules, and allowed rotation
+   or mirroring.
+5. `Baseline` is the local saved Y level aligned to the sampled surface. It is
+   not an absolute world height.
+6. Click `Valid` and resolve any reported error.
+7. Run `/rc generate <id>` to test the natural placer, then confirm or cancel.
+8. Test automatic selection in newly generated chunks. Use
+   `/rc worldgen inspect <id>` and `/rc worldgen rates <id>` when needed.
+
+The current GUI does not expose every obscure legacy placer or raw expression.
+Existing supported legacy metadata is still read, while common new structures
+should use the conservative GUI presets and rule editor. See the
+[structure authoring guide](docs/user/structure-authoring.md) for saplings,
+decorations, villages, scripts, structure lists, mazes, markers, large
+structures, and the exact supported boundaries.
+
+### Understand Scripts, Structure Lists, And Mazes
+
+- A simple structure-spawner script points to one child `.rcst`.
+- A structure list is an existing named weighted child pool supplied by legacy
+  `structureList` metadata. The editor can target a discovered list but cannot
+  build or edit its weighted entries in game.
+- Existing supported `mazeGen` data is why bundled legacy mazes work. Designing
+  a new maze graph, connector set, and room pool is not currently a supported
+  GUI workflow.
+- Child structures are useful for composition, but splitting a large structure
+  into script children does not inherently make it place faster.
 
 ### Fix Missing Blocks
 
@@ -286,6 +422,13 @@ diagnostic surface:
   - Show version, structure count, user folders, and major generation toggles.
 - `/rc reload`
   - Reload structure and generation catalogs after manual file changes.
+- `/rc generate <id>`
+  - Preview explicit natural-style generation at your current X/Z, then use
+    `/rc confirm` or `/rc cancel`.
+- `/rc here`
+  - Identify recorded RC structure footprints at your current position.
+- `/rc locate <id> [family]`
+  - Start a tick-sliced predictive search for one natural RC structure id.
 - `/rc worldgen balance`
   - Show the current frequency/balance settings and config path.
 - `/rc worldgen status`
@@ -300,8 +443,8 @@ diagnostic surface:
 - `/rc audit one <id>`
   - Audit one structure for compatibility issues.
 
-For full syntax, see
-[`docs/porting/command-reference.md`](docs/porting/command-reference.md).
+For full syntax, see the
+[command reference](docs/user/command-reference.md).
 
 ## Authoring Tool Items
 
@@ -347,9 +490,9 @@ Compatibility policy:
 Missing block replacement rules are global unless you use `Apply Here` on an
 editable structure.
 
-## Config And Frequency
+## Worldgen And Frequency
 
-Forge writes the common config to:
+Forge writes the common config relative to the active game or server instance:
 
 ```text
 config/reccomplex-common.toml
@@ -357,6 +500,11 @@ config/reccomplex-common.toml
 
 The GUI `Balance` tab is the easiest way to change the major knobs. Commands and
 manual config edits are still available for pack maintainers.
+
+For ordinary overall tuning, leave `rarity` at `1` and change the natural
+multiplier first. `rarity` remains as the older extra denominator for
+compatibility. Individual `.rcst` weights control competition between eligible
+structures and are not direct spawn percentages.
 
 Important groups:
 
@@ -378,6 +526,59 @@ Important groups:
     accepted RC cost in one detected village.
 
 Older config section names are migrated automatically where possible.
+
+Existing generated configs do not replace stored values when a later release
+changes a default. Balance GUI changes apply live and save the file. When editing
+TOML manually, stop the game or server first. `/rc reload` refreshes structure
+and generation catalogs; it is not a general TOML reload command.
+
+See [Configuration And Troubleshooting](docs/user/configuration-and-troubleshooting.md)
+for current defaults, spacing, terrain roughness, sapling/decoration/village
+tuning, fast-lane behavior, and diagnostic procedures.
+
+## Troubleshooting
+
+### No Structures Appear
+
+- Explore newly generated chunks, not terrain that already existed before the
+  mod or config change.
+- Run `/rc worldgen status`, `catalog`, `balance`, and `recent`.
+- Check `worldgen.enabled`, bundled inclusion, `allowedStructureIds`, spawn
+  distance, rarity, and the natural multiplier.
+- Remember that an older generated config retains its stored values.
+
+### One Structure Does Not Generate
+
+Run `/rc check <id>`, `/rc gen validate <id>`,
+`/rc worldgen inspect <id>`, and `/rc worldgen rates <id>`. Use
+`/rc generate <id>` to test its natural placer separately from automatic
+selection gates.
+
+### A Structure Appears Slowly Or In Pieces
+
+Run `/rc worldgen queue` while its chunks are loaded. Loaded active placements
+and loaded ledger complement slices should report fast-lane activity. Work still
+pauses for unloaded chunks or failed safe-write checks, and truly enormous
+structures are not instant regional jobs.
+
+If ordinary chunks stop loading too, capture `logs/latest.log` and several queue
+and recent outputs before leaving the world. The log from the stalled session is
+more useful than a later clean restart.
+
+### `/rc here` Finds Nothing
+
+The command uses stored footprints. It cannot backfill older placements, detect
+vanilla structures, or normally identify decoration/sapling structures while
+their `recordFootprints` settings are disabled.
+
+### Imported Blocks Become Air
+
+This is the intentional missing-mod fallback. Use `Gen -> Fix`,
+`/rc missing one <id>`, or `/rc missing dump` to inspect and replace missing
+legacy ids.
+
+The full symptom-by-symptom checklist is in
+[Configuration And Troubleshooting](docs/user/configuration-and-troubleshooting.md).
 
 ## Runtime Notes And Known Limitations
 
@@ -421,9 +622,6 @@ Known limitations:
 - true regional megastructure jobs are still future work, so enormous imported
   builds may need authoring strategy or later chunk-sliced placement support.
 
-For release testing, use `./gradlew verifyReleaseJar` plus the checklist in
-[`docs/porting/release-checklist.md`](docs/porting/release-checklist.md).
-
 When reporting bugs, include `logs/latest.log`, any crash report, the world
 seed/dimension/position if relevant, the GUI page or `/rc` command used, the
 structure/schematic id, and a screenshot for visible placement or GUI issues.
@@ -433,24 +631,27 @@ structure/schematic id, and a screenshot for visible placement or GUI issues.
 Most users do not need this section. It is for developers or pack maintainers
 building the jar locally.
 
-Use Java 17:
+Use a Java 17 JDK and the included Gradle wrapper:
 
 ```sh
-JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home ./gradlew build
+./gradlew build
 ```
+
+Set `JAVA_HOME` through your operating system or development environment if Java
+17 is not already the active JDK.
 
 The built mod jar is written under `build/libs/`.
 
 For a development client:
 
 ```sh
-JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home ./gradlew runClient
+./gradlew runClient
 ```
 
 For a development server:
 
 ```sh
-JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home ./gradlew runServer
+./gradlew runServer
 ```
 
 The modern port compiles from `src/modern/java` and `src/modernTest/java`. The
@@ -463,3 +664,6 @@ Build target details:
 - Forge: `47.4.10`
 - Java: `17`
 - Gradle wrapper: `8.8`
+
+For release testing, use `./gradlew verifyReleaseJar` plus the checklist in
+[`docs/porting/release-checklist.md`](docs/porting/release-checklist.md).
