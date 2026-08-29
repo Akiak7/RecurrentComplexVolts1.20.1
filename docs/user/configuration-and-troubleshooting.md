@@ -33,7 +33,7 @@ custom settings afterward.
 Older `legacyWorldgen`, `legacySaplings`, `legacyDecorations`, and
 `legacyVanilla` public section names are migrated where possible.
 
-## Important 0.6.1.0 Defaults
+## Important 0.7.0.0 Defaults
 
 | Setting | Default | Meaning |
 | --- | ---: | --- |

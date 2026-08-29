@@ -42,6 +42,10 @@ For exact command syntax, see the [command reference](command-reference.md).
 7. Add any RC markers, scripts, or container loot before export.
 8. Open `Auth -> Clip`, enter an id, and export `.rcst`.
 
+`/rc export` writes the selected blocks and NBT directly to an RC `.rcst`
+structure. There is no separate old or new RC export mode. The archive contains
+the `structure.json` and `worldData.nbt` used by RC structures.
+
 The lower selection corner becomes local `0 0 0`. Saved air inside the selected
 cuboid is part of the structure data, although compatibility transformers and
 markers can change what it does during placement.
@@ -60,6 +64,11 @@ Files in the older `active/structures` layout remain supported. Files under
 `structures/inactive` stay installed but are not loaded. Use `/rc reload` after
 adding or moving files outside the game, then use the GUI `R` button to refresh
 an open browser page.
+
+Export captures the structure; it does not open the old 1.12 generation dialog.
+After export, select the new id under `Structs`, open `Gen`, and configure its
+natural, sapling, decoration, village, rules, transformers, flags, and metadata
+there. Test manual placement before enabling a generation preset.
 
 ## Test Manual Placement First
 
@@ -166,10 +175,23 @@ special generation entries.
 - `Air` handles natural-air and preserve-air behavior.
 - `Ruins` applies the supported decay, gravity, vines, and cobweb behavior.
 
-`Auth -> Marks` paints RC placeholder blocks such as negative space, natural air,
-natural floor, and barriers. Smart floor/space tools help prepare ordinary
-builds for terrain-aware placement. Marker painting is an immediate command-side
-edit and can be undone while the undo entry remains in memory.
+`Auth -> Marks` paints the currently supported RC placeholder meanings:
+
+- `Neg space` preserves the block already in the destination world.
+- `Nat air` clears the destination to air and participates in the supported
+  natural-air cleanup transformer.
+- `Nat floor` asks the compatible placer for natural terrain fill and can seed
+  the supported terrain-blend transformer.
+- Smart marking derives the supported floor/air/space markers from an ordinary
+  build selection.
+
+These are real RC authoring blocks written by the GUI action (or `/rc mark ...`),
+not invisible modes attached to normal air. There are no separate modern GUI
+buttons for every old generic fill designation such as arbitrary liquid or
+top-layer tables; imported supported marker/transformer metadata is still read,
+but that broader old filling editor remains outside this authoring subset.
+Marker painting is an immediate command-side edit and can be undone while the
+undo entry remains in memory.
 
 ## Scripts And Child Structures
 
@@ -177,19 +199,112 @@ edit and can be undone while the undo entry remains in memory.
 
 - weighted command markers;
 - one explicit child-structure spawner;
-- an existing RC structure-list id;
+- authoring and using a named weighted RC structure list;
 - child shift, front, rotation, and mirror settings;
 - spawn and redstone trigger toggles.
 
-A structure list is a named pool supplied by legacy `structureList` generation
-entries. A script marker in list mode asks RC to choose from that existing
-weighted pool. The current editor can point at a discovered list id, but it does
-not create or edit the list's weighted entries in game.
+There is no separate “script block” to take from the creative inventory. First
+choose a world position in `Auth -> Script -> Target`; that only moves the
+editor's cursor. Then an action such as `Set One`, `Set Child`, or `Set List`
+places or updates the RC script marker block and its block-entity data at that
+target. Include that marker position inside the parent selection before
+exporting the parent. During normal compatibility placement, RC interprets the
+marker and does not leave it as an ordinary decorative block.
+
+The three child modes are different:
+
+- **Simple child:** `Spawn -> Set Child` creates a marker that directly names one
+  child structure.
+- **Named random list:** `Pool` edits weighted membership, while
+  `Spawn -> Set List` creates a marker that references that list. This is the
+  supported random-child workflow.
+- **Embedded per-marker table:** the old advanced table that stored several
+  weighted child choices directly on one marker is still deferred. Do not
+  confuse it with a named structure list.
+
+## Weighted Random Child Pools
+
+A named pool is deliberately distributed across its children. Every member is a
+legacy `structureList` entry inside that child's `.rcst`, storing `id`, `listID`,
+`weight`, `positionX/Y/Z`, and `front`. There is no pool/list file to export.
+Adding the first member creates the discoverable list; removing its last member
+makes the list disappear.
+
+Complete GUI workflow:
+
+1. Build and export each child, for example `MyRoomA` and `MyRoomB`. Test both as
+   normal structures first.
+2. Open `Auth -> Script -> Pool`.
+3. Type a new list id such as `my_rooms`, type `MyRoomA`, choose its positive
+   weight, X/Y/Z shift, and horizontal front, then click `Add`.
+4. Keep `my_rooms`, type `MyRoomB`, choose its values, and click `Add`. Use the
+   list and member arrows to browse; `Update` and `Remove` act on the displayed
+   membership.
+5. Build the parent. Open `Auth -> Script -> Target` and choose the block where
+   the child origin should be invoked.
+6. Open `Spawn`, pick `my_rooms` with the discovered-list arrows (or type it),
+   then click `Set List`. This creates the marker reference; it does not create
+   or modify the pool.
+7. Select the complete parent including the marker, export it, and test repeated
+   normal placements. Only pool members should be chosen, in proportion to
+   their weights. Verify each shift, front, parent rotation, and mirroring.
+
+Bundled memberships appear in the Pool browser for compatibility but are
+read-only. Use `/rc copy <sourceId> <newId>` or export/capture an editable child,
+then add that editable id to the custom pool. Imported duplicate entries are
+shown separately using stable internal entry keys; the GUI can select one
+specific duplicate, while pair-based commands reject the ambiguous mutation.
+
+Command equivalent:
+
+```text
+/rc struclist add my_rooms MyRoomA
+/rc struclist weight my_rooms MyRoomA 3
+/rc struclist shift my_rooms MyRoomA 1 0 -2
+/rc struclist front my_rooms MyRoomA east
+/rc struclist add my_rooms MyRoomB
+/rc struclist show my_rooms
+/rc script struc list set <x y z> my_rooms
+```
+
+### Conditional Pool Members
+
+A pool member can use the child structure's existing top-level dependency
+expression. For example, make `QuarkRoom` eligible only when Quark is installed:
+
+```text
+/rc gen expr dependency QuarkRoom mod:quark
+/rc struclist show my_rooms
+```
+
+The member remains visible in `Auth -> Script -> Pool` and `/rc struclist show`,
+but it is marked excluded and receives no share of the random selection when
+the expression is unmatched or unsupported. The remaining eligible weights are
+used normally. If every member is excluded, the marker safely places no child
+and reports which child dependencies prevented selection.
+
+Dependencies belong to the child structure, not to one membership. They apply
+everywhere that child participates in named pools. To make the same build
+conditional in only one pool, copy/export it under another id, add that copy to
+the pool, and assign the dependency to the copy. Use
+`Structs -> Gen -> Expr -> Dep` or
+`/rc gen expr dependency <childId> <expression>` to edit it. Clearing the
+expression restores eligibility immediately without `/rc reload`.
+
+Explicit/manual placement and direct `Set Child` markers remain available when
+a dependency is unmatched, matching the legacy distinction between explicit
+structure lookup and active named-list membership. Missing content still uses
+the normal safe air fallback during those explicit placements.
+
+List edits take effect immediately; `/rc reload` is not required. Manual file
+changes still require the normal reload.
 
 The runtime can expand the supported bounded subset of existing `mazeGen` and
 `strucGen` data, which is why bundled legacy mazes work. There is not yet a
-supported GUI workflow for designing a new maze graph, connectors, and room
-pool from scratch. Do not choose maze mode merely to split a large building.
+supported GUI or command workflow for designing/exporting a new maze graph,
+connectors, and room pool from scratch, so there is no maze-export option to
+find. Existing maze metadata is runtime compatibility, not a completed modern
+maze authoring tool. Do not choose maze mode merely to split a large building.
 
 Child structures are useful for reusable or optional sections. They are queued
 as separate safe placements and do not guarantee that a very large build will

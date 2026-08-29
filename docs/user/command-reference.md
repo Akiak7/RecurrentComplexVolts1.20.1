@@ -143,13 +143,45 @@ repair into one editable `.rcst` file instead of using a global rule.
   one-child `strucGen` marker pointing at a loadable structure.
 - `/rc script struc list set <x y z> <listId>` - switch the spawner marker to
   legacy structure-list mode, where runtime picks from an existing RC weighted
-  structure list.
+  structure list. This places/edits a marker reference; it does not edit list
+  membership.
 - `/rc script struc list clear <x y z>` - clear structure-list mode and return
   to simple child mode.
 - `/rc script struc shift|front|transform ...` - edit the spawner's child/list
   shift, front direction, rotation, and mirror flag.
 - `/rc script trigger spawn|redstone <x y z> <true|false>` - toggle whether
   the marker runs when placed with its parent structure or when powered.
+- `/rc struclist list [filter]` - discover named weighted child pools and show
+  authored versus dependency-eligible member counts and weights for this
+  instance.
+- `/rc struclist show <listId>` - show every child membership, weight, shift,
+  front, source, dependency eligibility, and stable entry key. Reads do not
+  require operator level 4.
+- `/rc struclist add <listId> <childId>` - add an editable loaded child with
+  default weight `1`, shift `0 0 0`, and front `north`. Adding the first member
+  creates the list.
+- `/rc struclist weight <listId> <childId> <weight>` - set a positive finite
+  membership weight.
+- `/rc struclist shift <listId> <childId> <x> <y> <z>` - set the child shift.
+- `/rc struclist front <listId> <childId> <north|east|south|west>` - set the
+  child front.
+- `/rc struclist remove <listId> <childId>` - remove the membership; removing
+  the last member makes the list disappear. Membership mutations require
+  permission level `4` and are active immediately without `/rc reload`.
+
+Structure-list membership is legacy `structureList` metadata inside each child
+`.rcst`; there is no separate list file. Pair-based commands reject ambiguous
+imported duplicates. Use `Auth -> Script -> Pool` to select a specific duplicate
+entry. Bundled members are visible but read-only until copied/exported under an
+editable id.
+
+Named-list selection honors each child's top-level `dependencyExpression`.
+Unmatched or unsupported members remain visible but are excluded before front
+and weighted selection; if none remain, the marker places no child and reports
+the excluded children. Use `Structs -> Gen -> Expr -> Dep`, or run
+`/rc gen expr dependency <childId> <expression>`. The condition is child-wide,
+not membership-specific. Direct `Set Child` and explicit/manual placement do not
+use this named-list eligibility filter.
 - `/rc loot list [filter]` - list bundled and user `.rcig` inventory
   generators.
 - `/rc loot show <id>` - show one inventory generator's range and weighted
@@ -178,13 +210,15 @@ repair into one editable `.rcst` file instead of using a global rule.
   pages for
   grabbing selector/inspector items, precise coordinate entry, here/look selection, one-face resize, copy, paste
   preview, `.rcst`/`.schem` export, common marker fills, command/simple or
-  structure-list spawner marker authoring, vanilla loot-table assignment, and
+  structure-list pool/marker authoring, vanilla loot-table assignment, and
   simple `.rcig` inventory-generator editing. The Script page is split into
-  `Target`, `Cmd`, `Spawn`, and `Xform` subpages; the Loot page is split into
+  `Target`, `Cmd`, `Spawn`, `Pool`, and `Xform` subpages; the Loot page is split into
   `Box`, `Van`, `Gen`, and `Entry` subpages.
 - `/rc export <id>` - write the current selection to
-  `config/reccomplex/structures/active/<id>.rcst`. Modern in-game exports are
-  marked for generic modern block-entity/entity NBT passthrough. User `.rcst`
+  `config/reccomplex/structures/active/<id>.rcst`. The resulting `.rcst` is
+  marked for generic modern block-entity/entity NBT passthrough. Export does not
+  open a generation dialog; select the new structure and configure it under `Gen`
+  afterward. User `.rcst`
   files are loaded from loose files directly under `structures` and from
   `structures/active`; move files to `structures/inactive` to keep them
   installed but disabled.
@@ -418,8 +452,8 @@ structures.
   by default. This measures surface roughness with the old RC safe-footprint
   shape around the trigger chunk before the full liquid/conformity checks run.
   `worldgen.maxSurfaceDelta` is the single roughness cap for supported RC
-  surface placement styles, default `7`; set it to `4` for stricter old-like
-  rejection.
+  surface placement styles, default `7`, matching the maintained original RC;
+  lower values provide stricter rough-terrain rejection.
   Set it to `false` only when comparing against the stricter full-footprint port
   behavior.
 - Optional natural spacing is edited from `/rc gui` -> `Balance` -> `Spacing`
