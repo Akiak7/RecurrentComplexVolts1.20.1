@@ -10,12 +10,13 @@ The port is built around compatibility. Missing mod content degrades safely,
 usually to air, instead of crashing a world. Old `.rcst` files remain the main
 Recurrent Complex structure format.
 
-Current public baseline: `0.6.1.0`.
+Current public baseline: `0.7.0.0`.
 
 Please consider supporting the developer at https://ko-fi.com/akiak
 
 ## Guide Contents
 
+- [Requirements And Installation](#requirements-and-installation)
 - [Updating And Existing Worlds](#updating-and-existing-worlds)
 - [Permissions](#permissions)
 - [Quick Start](#quick-start)
@@ -32,6 +33,21 @@ Detailed guides:
 - [Structure Authoring](docs/user/structure-authoring.md)
 - [Configuration And Troubleshooting](docs/user/configuration-and-troubleshooting.md)
 - [Command Reference](docs/user/command-reference.md)
+
+## Requirements And Installation
+
+- Minecraft: `1.20.1`
+- Forge: `47.4.10`
+- Java: `17`
+- Mod id: `reccomplex`
+
+Install the matching `RecurrentComplexVolts-1.20.1-0.7.0.0.jar` in the instance's
+`mods` folder. Multiplayer servers and connecting clients should all use the
+matching jar. No content-library dependency is required beyond Minecraft and the
+listed Forge version.
+
+Do not use the 1.21.1 or 26.1.2 NeoForge jar on this target. A jar built for a
+different Minecraft version or loader will not work.
 
 ## Updating And Existing Worlds
 
@@ -51,8 +67,8 @@ back up or rename that file, and let RC create a new one at next launch.
 - Permission level `2` is required for selection, preview, placement, confirm,
   cancel, undo, catalog reloads, predictive locating, and `/rc generate`.
 - Permission level `4` is required for exports, editable copies, metadata and
-  loot-generator changes, missing-block replacement changes, and global balance
-  edits.
+  loot-generator/structure-list membership changes, missing-block replacement
+  changes, and global balance edits.
 
 In singleplayer, enable cheats when creating the world or temporarily use
 `Open to LAN -> Allow Cheats`. On a dedicated server, use the normal operator
@@ -99,8 +115,8 @@ For the detailed command map, see the
     structures.
 - `Auth`
   - Work with selections, clipboard copy/paste, `.rcst` export, `.schem`
-    export, marker painting, script marker authoring, and loot/container
-    authoring.
+    export, marker painting, script marker authoring, weighted child pools, and
+    loot/container authoring.
 - `Balance`
   - Make RC worldgen rarer, commoner, disabled, or spaced out without opening
     the config file by hand.
@@ -275,7 +291,29 @@ Open `/rc gui -> Gen` on an editable structure.
 GUI fields are explicit-apply fields. Typing a value does not change the
 structure until you press the matching button.
 
+### Choose Terrain Marker Meanings
+
+`Auth -> Marks` paints placeholder blocks that tell RC how the destination
+world should be treated during compatible placement:
+
+| Marker | Placement meaning |
+| --- | --- |
+| `Neg space` | Preserve the block already present in the destination world. |
+| `Nat air` | Clear the destination to air and participate in supported natural-air cleanup. |
+| `Nat floor` | Retain existing solid terrain, or fill empty/replaceable space with dimension-appropriate natural terrain; it can also seed supported terrain blending. |
+
+The modern authoring subset does not yet provide arbitrary liquid designation,
+explicit top/filler-layer control, meaningful authoring for reserved
+generic-space/generic-solid variants, or the full old generic-filling
+table/editor. Imported metadata in the supported subset is still read;
+unsupported reserved markers degrade conservatively by preserving the
+destination block.
+
 ### Make A Custom Structure Generate Naturally
+
+`/rc export` captures the structure only; it never opens a generation-settings
+popup. After export, select the new id under `Structs`, open `Gen`, and configure
+its generation behavior there.
 
 1. Export the build or make an editable copy of a bundled structure.
 2. Test it with `Check`, `Audit`, and a normal manual preview.
@@ -298,15 +336,42 @@ structures, and the exact supported boundaries.
 
 ### Understand Scripts, Structure Lists, And Mazes
 
-- A simple structure-spawner script points to one child `.rcst`.
-- A structure list is an existing named weighted child pool supplied by legacy
-  `structureList` metadata. The editor can target a discovered list but cannot
-  build or edit its weighted entries in game.
+- `Auth -> Script -> Spawn -> Set Child` creates a marker that directly names one
+  child `.rcst`.
+- `Auth -> Script -> Pool` creates or edits a named weighted child pool. A pool
+  is not a separate file: each membership is saved as legacy `structureList`
+  metadata inside that child `.rcst`.
+- `Auth -> Script -> Spawn -> Set List` creates a marker that references an
+  existing pool; it does not edit pool membership. At placement time RC chooses
+  a member by weight and applies its saved shift and front.
+- Bundled pool members are visible but read-only. Copy/export a child under an
+  editable config id before adding it to a custom pool.
+- Named pools honor each child's existing `dependencyExpression`. Unmatched or
+  unsupported members stay visible but are excluded from weighted selection;
+  set the child-wide condition under `Gen -> Expr -> Dep` or run
+  `/rc gen expr dependency <childId> <expression>`.
+- The old embedded per-marker table of weighted children remains deferred. The
+  supported random mode is the named legacy structure-list system above.
 - Existing supported `mazeGen` data is why bundled legacy mazes work. Designing
   a new maze graph, connector set, and room pool is not currently a supported
   GUI workflow.
 - Child structures are useful for composition, but splitting a large structure
   into script children does not inherently make it place faster.
+
+Simple child example:
+
+1. Export or otherwise load the child `.rcst`, for example `MyRoom`.
+2. Build the parent, open `/rc gui -> Auth -> Script -> Target`, and choose the
+   marker position with the coordinate fields, `Here`, or `Look`. `Target` only
+   moves the editor cursor; it does not place anything.
+3. Open `Spawn`, enter the loaded child id, and click `Set Child`. This creates
+   or updates an RC script marker at the selected target.
+4. Adjust its shift, front, rotation, or mirror settings under `Xform` if needed.
+5. Include the marker in the parent selection, export the parent, and test its
+   placement.
+
+The end-to-end child-pool tutorial is in
+[Structure Authoring: Weighted Random Child Pools](docs/user/structure-authoring.md#weighted-random-child-pools).
 
 ### Fix Missing Blocks
 
@@ -473,9 +538,9 @@ icon buttons.
 
 ## Structure Compatibility
 
-Old 1.12.2 Recurrent Complex `.rcst` files are treated as user data. The port
-does not replace the legacy format with a new default format. Instead, old data
-is adapted at load, preview, placement, export, and generation time.
+Old 1.12.2 Recurrent Complex `.rcst` files are treated as user data. Imported
+structures and structures created with `/rc export` use the same `.rcst` format;
+old data is adapted at load, preview, placement, export, and generation time.
 
 Compatibility policy:
 
@@ -601,9 +666,9 @@ Known limitations:
 - village pieces use the bounded compatibility bridge, not true modern jigsaw
   pool injection;
 - script authoring covers command markers, simple child structure spawners, and
-  existing RC structure-list spawners, while `mazeGen`, holder scripts, custom
-  environment matchers, and embedded per-marker child-table editing remain
-  deferred;
+  creation/editing/use of named RC weighted structure lists, while `mazeGen`,
+  holder scripts, custom environment matchers, and embedded per-marker
+  child-table editing remain deferred;
 - modern-origin `.nbt` imports and in-game `.rcst` exports preserve unknown
   modded block-entity/entity NBT generically, but rotation and mirroring only
   transform block states, positions, and supported entity orientation. Unknown
